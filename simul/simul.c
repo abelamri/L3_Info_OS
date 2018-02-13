@@ -1,7 +1,8 @@
-
+#include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
 
 /**********************************************************
 ** Codage d'une instruction (32 bits)
@@ -89,6 +90,22 @@ typedef struct PSW {    /* Processor Status Word */
 	INST RI;        /* Registre instruction */
 } PSW;
 
+/**********************************************************
+** Codage des processus
+***********************************************************/
+
+
+#define MAX_PROCESS (20)   /* nb maximum de processus  */
+#define EMPTY       (0)    /* processus non-pret       */
+#define READY       (1)    /* processus pret           */
+
+struct {
+	PSW cpu;               /* mot d’etat du processeur */
+	int state;             /* etat du processus        */
+} process[MAX_PROCESS];  /* table des processus      */
+int current_process = -1;  /* nu du processus courant  */
+
+
 
 /**********************************************************
 ** Simulation de la CPU (mode utilisateur)
@@ -156,7 +173,6 @@ PSW cpu_LOAD(PSW m) {
 		m.IN = INT_SEGV;
 		return m;
 	}
-	printf("c'est censé marcher\n");
 	m.AC = mem[m.SB + m.AC];
 	m.DR[m.RI.i] = m.AC;
 	// printf(" AC : %d ");
@@ -212,7 +228,6 @@ PSW cpu(PSW m) {
 		m = cpu_SYSC(m);
 		return m;
 	case INST_LOAD:
-		printf("cpu\n");
 		m = cpu_LOAD(m);
 		return m;
 	default:
@@ -239,6 +254,9 @@ PSW systeme_init(void) {
 	PSW cpu;
 
 	printf("Booting.\n");
+	/*** Préparation premiers processus ***/
+	process[0].state = READY;
+	process[1].state = READY;
 	/*** creation d'un programme ***/
 	make_inst(0, INST_SUB, 2, 2, -1000); /* R2 -= R2-1000 */
 	//make_inst(0, 5, 2, 2, -1000); /* instruction inconnue */
@@ -317,7 +335,12 @@ PSW systeme(PSW m) {
 			break;
 		case INT_CLOCK :
 			printf("Interruption clock\n");			
-			//printf("Program Counter : %d.\n", m.PC);
+			int current_process_copy = current_process;
+			do {
+				printf("Changement de processus\n");
+				current_process = (current_process + 1) % MAX_PROCESS;
+			} while (process[current_process].state != READY);
+			current_process = current_process_copy;
 			break;
 		case INT_SYSC :
 			printf("Appel système ...\n");
@@ -337,6 +360,7 @@ int main(void) {
 	
 	mep.IN = INT_INIT; /* interruption INIT */	
 	while (1) {
+		//sleep(1);
 		mep = systeme(mep);
 		mep = cpu(mep);
 	}
