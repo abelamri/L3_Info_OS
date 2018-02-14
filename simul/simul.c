@@ -71,9 +71,9 @@ void make_inst(int adr, unsigned code, unsigned i, unsigned j, short arg) {
 ** Arguments système
 ***********************************************************/
 
-#define SYSC_EXIT   (1)
-#define SYSC_PUTI   (2)
-#define SYSC_LOAD   (3)
+#define SYSC_EXIT       (1)
+#define SYSC_PUTI       (2)
+#define SYSC_NEW_THREAD (3)
 
 
 /**********************************************************
@@ -95,7 +95,7 @@ typedef struct PSW {    /* Processor Status Word */
 ***********************************************************/
 
 
-#define MAX_PROCESS (20)   /* nb maximum de processus  */
+#define MAX_PROCESS (2)   /* nb maximum de processus  */
 #define EMPTY       (0)    /* processus non-pret       */
 #define READY       (1)    /* processus pret           */
 
@@ -158,9 +158,15 @@ PSW cpu_HALT(PSW m) {
 	printf("HALT\n");
 	// m.IN = INT_HALT;
 	// m.PC += 1;
-	exit(0);
-
-	//return m;
+	process[current_process].state = !READY;
+	int are_all_dead = 1;
+	for (int i = 0; i < MAX_PROCESS; ++i)
+		if (process[current_process].state == READY) are_all_dead = 0;
+	if(are_all_dead) exit(0);
+	do {
+		current_process = (current_process + 1) % MAX_PROCESS;
+	} while (process[current_process].state != READY);
+	return process[current_process].cpu;
 }
 
 /*instruction load*/
@@ -188,10 +194,12 @@ PSW cpu_SYSC(PSW m) {
 	return m;
 }
 
+int counter = 0;
+
 /* Simulation de la CPU */
 PSW cpu(PSW m) {
 	union { WORD word; INST in; } inst;
-	static int counter = 0;
+	
 	
 	/*** lecture et decodage de l'instruction ***/
 	if (m.PC < 0 || m.PC >= m.SS) {
@@ -216,7 +224,7 @@ PSW cpu(PSW m) {
 		break;
 	case INST_HALT:
 		m = cpu_HALT(m);
-		return m;
+		//return m;
 		break;
 	case INST_JUMP:
 		m = cpu_JUMP(m);
@@ -225,9 +233,11 @@ PSW cpu(PSW m) {
 		m = cpu_IFGT(m);
 		break;
 	case INST_SYSC:
+		counter++;
 		m = cpu_SYSC(m);
 		return m;
 	case INST_LOAD:
+		counter++;
 		m = cpu_LOAD(m);
 		return m;
 	default:
@@ -238,10 +248,9 @@ PSW cpu(PSW m) {
 
 	/*** interruption apres chaque instruction ***/
 	counter++;
-	if (counter % 3 == 0) m.IN = INT_CLOCK;
+	if(counter % 3 == 0) m.IN = INT_CLOCK;
 	else m.IN = INT_TRACE;
-	
-	//m.IN = INT_TRACE;
+
 	return m;
 }
 
@@ -257,6 +266,7 @@ PSW systeme_init(void) {
 	/*** Préparation premiers processus ***/
 	process[0].state = READY;
 	process[1].state = READY;
+	current_process = 0;
 	/*** creation d'un programme ***/
 	make_inst(0, INST_SUB, 2, 2, -1000); /* R2 -= R2-1000 */
 	//make_inst(0, 5, 2, 2, -1000); /* instruction inconnue */
@@ -268,7 +278,6 @@ PSW systeme_init(void) {
 	make_inst(6, INST_NOP, 0, 0, 0);
 	make_inst(7, INST_SYSC, 2, 0, SYSC_PUTI);
 	make_inst(8, INST_SYSC, 3, 0, SYSC_PUTI);
-	make_inst(9, INST_LOAD, 3, 2, 10);
 	make_inst(10, INST_SYSC, 3, 0, SYSC_PUTI);
 	make_inst(11, INST_SYSC, 0, 0, SYSC_EXIT);
 	make_inst(20, INST_HALT, 0, 0, 0);
@@ -278,6 +287,9 @@ PSW systeme_init(void) {
 	cpu.PC = 0;
 	cpu.SB = 0;
 	cpu.SS = 20;
+
+	process[0].cpu = cpu;	
+	process[1].cpu = cpu;
 
 	return cpu;
 }
@@ -305,13 +317,23 @@ void sysc (PSW m) {
 		case SYSC_PUTI :
 			printf("R%d = %d\n", m.RI.i, m.DR[m.RI.i]);
 			break;
-
+		case SYSC_NEW_THREAD:
+			int new_process = current_process;
+			do {
+				new_process = (new_process + 1) % MAX_PROCESS;
+			} while (process[new_process].state != READY);
+			process[new_process].cpu = m;
+			m.RI.i = new_process;
+			m.AC = new_process;
+			process[new_process].cpu.RI.i = 0;
+			process[new_process].cpu.AC = 0;
+			break;
 	}
 }
 
 PSW systeme(PSW m) {
 	printf("Interruption n° : %d\n", m.IN);
-	printf("Program Counter : %d.\n", m.PC);
+	printf("Process %d : Program Counter : %d.\n", current_process, m.PC);
 	switch (m.IN) {
 		case INT_INIT:
 			return (systeme_init());
@@ -320,10 +342,6 @@ PSW systeme(PSW m) {
 			exit(1);
 			break;
 		case INT_TRACE:
-			printf("Program Counter : %d.\n", m.PC);
-			// for (int i = 0; i < 8; ++i) {
-			// 	printf("Data register %d : %d.\n", i, m.DR[i]);
-			// }
 			break;
 		case INT_INST:
 			printf("Erreur : Instruction inconnue.\n");
@@ -333,18 +351,23 @@ PSW systeme(PSW m) {
 			printf("HALT.\n");
 			exit(0);
 			break;
+		case INT_SYSC :
+			printf("Appel système ...\n");
+			sysc(m);
+			if (counter % 3 != 0) break;
+			else m.IN = INT_CLOCK;
+
 		case INT_CLOCK :
 			printf("Interruption clock\n");			
-			int current_process_copy = current_process;
+			process[current_process].cpu = m;
 			do {
 				printf("Changement de processus\n");
 				current_process = (current_process + 1) % MAX_PROCESS;
 			} while (process[current_process].state != READY);
-			current_process = current_process_copy;
+			printf("Nouveau processus : %d\n", current_process);
+			return process[current_process].cpu;
 			break;
-		case INT_SYSC :
-			printf("Appel système ...\n");
-			sysc(m);
+
 	}
 	return m;
 }
