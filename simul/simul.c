@@ -275,19 +275,27 @@ void systeme_init(void) {
 /*	process[0].state = READY;
 	process[1].state = READY;*/
 	/*** creation d'un programme ***/
-	make_inst(0, INST_SUB, 2, 2, -1000); /* R2 -= R2-1000 */
-	//make_inst(0, 5, 2, 2, -1000); /* instruction inconnue */
-	make_inst(1, INST_ADD, 1, 2, 500);   /* R1 += R2+500 */
-	make_inst(2, INST_ADD, 0, 2, 200);   /* R0 += R2+200 */
-	make_inst(3, INST_ADD, 0, 1, 100);   /* R0 += R1+100 */	
-	make_inst(4, INST_CMP, 2, 1, 0);     /* AC = (R1 - R2) 1500 - 1000*/
-	make_inst(5, INST_IFGT, 4, 0, 20);   /* if R1 > R2, PC = R4 + 11*/
-	make_inst(6, INST_NOP, 0, 0, 0);
-	make_inst(7, INST_SYSC, 2, 0, SYSC_PUTI);
-	make_inst(8, INST_SYSC, 3, 0, SYSC_PUTI);
-	make_inst(10, INST_SYSC, 3, 0, SYSC_PUTI);
-	make_inst(11, INST_SYSC, 0, 0, SYSC_EXIT);
-	make_inst(20, INST_HALT, 0, 0, 0);
+//	make_inst(0, INST_SUB, 2, 2, -1000); /* R2 -= R2-1000 */
+//	make_inst(0, 5, 2, 2, -1000); /* instruction inconnue */
+//	make_inst(1, INST_ADD, 1, 2, 500);   /* R1 += R2+500 */
+//	make_inst(2, INST_ADD, 0, 2, 200);   /* R0 += R2+200 */
+//	make_inst(3, INST_ADD, 0, 1, 100);   /* R0 += R1+100 */	
+//	make_inst(4, INST_CMP, 2, 1, 0);     /* AC = (R1 - R2) 1500 - 1000*/
+//	make_inst(5, INST_IFGT, 4, 0, 20);   /* if R1 > R2, PC = R4 + 11*/
+//	make_inst(6, INST_NOP, 0, 0, 0);
+//	make_inst(7, INST_SYSC, 2, 0, SYSC_PUTI);
+//	make_inst(8, INST_SYSC, 3, 0, SYSC_PUTI);
+//	make_inst(10, INST_SYSC, 3, 0, SYSC_PUTI);
+//	make_inst(11, INST_SYSC, 0, 0, SYSC_EXIT);
+//	make_inst(20, INST_HALT, 0, 0, 0);
+	make_inst(0, INST_SUB, 0, 0, 0); /*SUB R0, R0, 0*/
+	make_inst(1, INST_SYSC, 1, 1, SYSC_NEW_THREAD); /* nouveau thread*/
+	make_inst(2, INST_IFGT, 0, 0, 5); /*père reprend à n° 5*/
+	make_inst(3, INST_ADD, 0, 0, 500); /* R0 += R0 + 500 */
+	make_inst(4, INST_SYSC, 0, 0, SYSC_PUTI); /* affiche R0 = 500 */
+	make_inst(5, INST_ADD, 0, 0, 1000);/* R0 += R0 + 1000 */
+	make_inst(6, INST_SYSC, 0, 0, SYSC_PUTI); /* affiche R0 = 1000 */
+	make_inst(7, INST_SYSC, 0, 0, SYSC_EXIT); /*arrêt système */
 
 	init_process(0);
 	init_process(1);
@@ -316,7 +324,8 @@ void sysc (PSW m) {
 		case SYSC_PUTI :
 			printf("R%d = %d\n", m.RI.i, m.DR[m.RI.i]);
 			break;
-/*		case SYSC_NEW_THREAD :
+		case SYSC_NEW_THREAD :
+			;
 			int new_process = current_process;
 			do {
 				new_process = (new_process + 1) % MAX_PROCESS;
@@ -326,7 +335,7 @@ void sysc (PSW m) {
 			m.AC = new_process;
 			process[new_process].cpu.RI.i = 0;
 			process[new_process].cpu.AC = 0;
-			break;*/
+			break;
 	}
 }
 
