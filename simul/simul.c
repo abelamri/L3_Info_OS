@@ -105,6 +105,15 @@ struct {
 } process[MAX_PROCESS];  /* table des processus      */
 int current_process = -1;  /* nu du processus courant  */
 
+void init_process(int ind) {	
+	process[ind].state = READY;
+	memset (&process[ind], 0, sizeof(process[ind].cpu));
+	process[ind].cpu.PC = 0;
+	process[ind].cpu.SB = 0;
+	process[ind].cpu.SS = 20;
+
+}
+
 
 
 /**********************************************************
@@ -259,14 +268,12 @@ PSW cpu(PSW m) {
 ** Demarrage du systeme
 ***********************************************************/
 
-PSW systeme_init(void) {
-	PSW cpu;
-
+void systeme_init(void) {
 	printf("Booting.\n");
 	/*** Préparation premiers processus ***/
-	process[0].state = READY;
-	process[1].state = READY;
 	current_process = 0;
+/*	process[0].state = READY;
+	process[1].state = READY;*/
 	/*** creation d'un programme ***/
 	make_inst(0, INST_SUB, 2, 2, -1000); /* R2 -= R2-1000 */
 	//make_inst(0, 5, 2, 2, -1000); /* instruction inconnue */
@@ -281,17 +288,9 @@ PSW systeme_init(void) {
 	make_inst(10, INST_SYSC, 3, 0, SYSC_PUTI);
 	make_inst(11, INST_SYSC, 0, 0, SYSC_EXIT);
 	make_inst(20, INST_HALT, 0, 0, 0);
-	
-	/*** valeur initiale du PSW ***/
-	memset (&cpu, 0, sizeof(cpu));
-	cpu.PC = 0;
-	cpu.SB = 0;
-	cpu.SS = 20;
 
-	process[0].cpu = cpu;	
-	process[1].cpu = cpu;
-
-	return cpu;
+	init_process(0);
+	init_process(1);
 }
 
 
@@ -317,7 +316,7 @@ void sysc (PSW m) {
 		case SYSC_PUTI :
 			printf("R%d = %d\n", m.RI.i, m.DR[m.RI.i]);
 			break;
-		case SYSC_NEW_THREAD:
+/*		case SYSC_NEW_THREAD :
 			int new_process = current_process;
 			do {
 				new_process = (new_process + 1) % MAX_PROCESS;
@@ -327,7 +326,7 @@ void sysc (PSW m) {
 			m.AC = new_process;
 			process[new_process].cpu.RI.i = 0;
 			process[new_process].cpu.AC = 0;
-			break;
+			break;*/
 	}
 }
 
@@ -336,7 +335,8 @@ PSW systeme(PSW m) {
 	printf("Process %d : Program Counter : %d.\n", current_process, m.PC);
 	switch (m.IN) {
 		case INT_INIT:
-			return (systeme_init());
+			systeme_init();
+			return process[current_process].cpu;
 		case INT_SEGV:
 			printf("Interruption de segmentation.\n");
 			exit(1);
