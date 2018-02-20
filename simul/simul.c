@@ -38,6 +38,7 @@ WORD mem[128];     /* memoire                       */
 #define INST_HALT   (6)
 #define INST_SYSC   (7)
 #define INST_LOAD   (8)
+#define INST_STORE  (9)
 
 
 /**********************************************************
@@ -95,7 +96,7 @@ typedef struct PSW {    /* Processor Status Word */
 ***********************************************************/
 
 
-#define MAX_PROCESS (2)   /* nb maximum de processus  */
+#define MAX_PROCESS (20)   /* nb maximum de processus  */
 #define EMPTY       (0)    /* processus non-pret       */
 #define READY       (1)    /* processus pret           */
 
@@ -108,7 +109,7 @@ int current_process = -1;  /* nu du processus courant  */
 void init_process(int ind) {	
 	process[ind].state = READY;
 	memset (&process[ind], 0, sizeof(process[ind].cpu));
-	process[ind].cpu.PC = 0;
+	//process[ind].cpu.PC = 0;
 	process[ind].cpu.SB = 0;
 	process[ind].cpu.SS = 20;
 
@@ -174,7 +175,7 @@ PSW cpu_HALT(PSW m) {
 	if(are_all_dead) exit(0);
 	do {
 		current_process = (current_process + 1) % MAX_PROCESS;
-	} while (process[current_process].state != READY);
+	} while (process[current_process].state == READY);
 	return process[current_process].cpu;
 }
 
@@ -189,12 +190,26 @@ PSW cpu_LOAD(PSW m) {
 		return m;
 	}
 	m.AC = mem[m.SB + m.AC];
-	m.DR[m.RI.i] = m.AC;
+	m.DR[m.RI.i] = m.AC; //on hésite
 	// printf(" AC : %d ");
 	m.PC += 1;
 	return m;
 }
 
+/*instruction store*/
+PSW cpu_STORE(PSW m) {
+	m.AC = m.RI.j + m.RI.ARG;
+
+	if(m.AC < 0 || m.AC >= m.SS) {
+		printf("segv + %d\n", m.SS);
+		m.IN = INT_SEGV;
+		return m;
+	}
+	mem[m.SB + m.AC] = m.RI.i;
+	m.AC = m.RI.i;
+	m.PC += 1;
+	return m;
+}
 
 /* instruction système */
 PSW cpu_SYSC(PSW m) {
@@ -249,6 +264,10 @@ PSW cpu(PSW m) {
 		counter++;
 		m = cpu_LOAD(m);
 		return m;
+	case INST_STORE:
+		counter++;
+		m = cpu_STORE(m);
+		return m;
 	default:
 		/*** interruption instruction inconnue ***/
 		m.IN = INT_INST;
@@ -280,25 +299,59 @@ void systeme_init(void) {
 //	make_inst(1, INST_ADD, 1, 2, 500);   /* R1 += R2+500 */
 //	make_inst(2, INST_ADD, 0, 2, 200);   /* R0 += R2+200 */
 //	make_inst(3, INST_ADD, 0, 1, 100);   /* R0 += R1+100 */	
-//	make_inst(4, INST_CMP, 2, 1, 0);     /* AC = (R1 - R2) 1500 - 1000*/
-//	make_inst(5, INST_IFGT, 4, 0, 20);   /* if R1 > R2, PC = R4 + 11*/
-//	make_inst(6, INST_NOP, 0, 0, 0);
-//	make_inst(7, INST_SYSC, 2, 0, SYSC_PUTI);
-//	make_inst(8, INST_SYSC, 3, 0, SYSC_PUTI);
-//	make_inst(10, INST_SYSC, 3, 0, SYSC_PUTI);
-//	make_inst(11, INST_SYSC, 0, 0, SYSC_EXIT);
+	// make_inst(4, INST_CMP, 2, 1, 0);     /* AC = (R1 - R2) 1500 - 1000*/
+	// make_inst(5, INST_IFGT, 4, 0, 20);   /* if R1 > R2, PC = R4 + 11*/
+	// make_inst(6, INST_NOP, 0, 0, 0);
+	// make_inst(7, INST_SYSC, 2, 0, SYSC_PUTI);
+	// make_inst(8, INST_SYSC, 3, 0, SYSC_PUTI);
+	// make_inst(10, INST_SYSC, 3, 0, SYSC_PUTI);
+	// make_inst(11, INST_SYSC, 0, 0, SYSC_EXIT);
 //	make_inst(20, INST_HALT, 0, 0, 0);
-	make_inst(0, INST_SUB, 0, 0, 0); /*SUB R0, R0, 0*/
-	make_inst(1, INST_SYSC, 1, 1, SYSC_NEW_THREAD); /* nouveau thread*/
-	make_inst(2, INST_IFGT, 0, 0, 5); /*père reprend à n° 5*/
-	make_inst(3, INST_ADD, 0, 0, 500); /* R0 += R0 + 500 */
-	make_inst(4, INST_SYSC, 0, 0, SYSC_PUTI); /* affiche R0 = 500 */
-	make_inst(5, INST_ADD, 0, 0, 1000);/* R0 += R0 + 1000 */
-	make_inst(6, INST_SYSC, 0, 0, SYSC_PUTI); /* affiche R0 = 1000 */
-	make_inst(7, INST_SYSC, 0, 0, SYSC_EXIT); /*arrêt système */
+	// make_inst(0, INST_SUB, 0, 0, 0); /*SUB R0, R0, 0*/
+	// make_inst(1, INST_STORE, 0, 0, 100);
+	// make_inst(1+1, INST_SYSC, 1, 1, SYSC_NEW_THREAD); /* nouveau thread*/
+	// make_inst(2+1, INST_IFGT, 0, 0, 5+1); /*père reprend à n° 5*/
+	//fils
+	// make_inst(, INST_ADD, 0, 0, 666);
+	// make_inst(3+1, INST_STORE, 0, 0, 1); /* R0 += R0 + 500 */
+	// make_inst(, INST_LOAD, 1, 0, 1);
+	// make_inst(4+1, INST_SYSC, 1, 0, SYSC_PUTI); /* affiche R0 = 500 */
+	//père
+	// make_inst(5+1, INST_ADD, 0, 0, 1000);/* R0 += R0 + 1000 */
+	// make_inst(6+1, INST_SYSC, 0, 0, SYSC_PUTI); /* affiche R0 = 1000 */
+	// make_inst(7+1, INST_SYSC, 0, 0, SYSC_EXIT); /*arrêt système */
+
+	make_inst(0, INST_ADD, 0, 0, 500);
+	make_inst(1, INST_SYSC, 0, 0, SYSC_PUTI);
+	make_inst(2, INST_STORE, 0, 0, 0);
+	make_inst(3, INST_SYSC, 0, 0, SYSC_PUTI);
+	make_inst(4, INST_SYSC, 0, 0, SYSC_NEW_THREAD);
+	make_inst(5, INST_IFGT, 0, 0, 7);
+	//fils
+	make_inst(6, INST_LOAD, 0, 0, 0);
+	make_inst(7, INST_ADD, 0, 0, 500);
+	make_inst(8, INST_STORE, 0, 0, 0);
+	//pere
+	make_inst(6, INST_NOP, 0, 0, 0);
+	make_inst(7, INST_NOP, 0, 0, 0);
+	make_inst(8, INST_NOP, 0, 0, 0);
+	make_inst(9, INST_NOP, 0, 0, 0);
+	make_inst(10, INST_LOAD, 0, 0, 0);
+	make_inst(11, INST_SYSC, 0, 0, SYSC_PUTI);
+	make_inst(12, INST_SYSC, 0, 0, SYSC_EXIT);
+
+
+	//r0 = 500
+	//store r0
+	//thread
+	//fils
+	//load 0
+	//add r0 500
+	//store r0
+	//pere
+	//puty r0
 
 	init_process(0);
-	init_process(1);
 }
 
 
@@ -317,6 +370,9 @@ void systeme_init(void) {
 
 
 void sysc (PSW m) {
+	int new_process = current_process;
+	int loop_counter = 0;
+
 	switch(m.RI.ARG) {
 		case SYSC_EXIT :
 			printf("Arrêt du système.\n");
@@ -325,22 +381,31 @@ void sysc (PSW m) {
 			printf("R%d = %d\n", m.RI.i, m.DR[m.RI.i]);
 			break;
 		case SYSC_NEW_THREAD :
-			;
-			int new_process = current_process;
 			do {
+				printf("_________________________loopc ont %d\n", loop_counter);
+				loop_counter++;
 				new_process = (new_process + 1) % MAX_PROCESS;
-			} while (process[new_process].state != READY);
-			process[new_process].cpu = m;
-			m.RI.i = new_process;
-			m.AC = new_process;
-			process[new_process].cpu.RI.i = 0;
-			process[new_process].cpu.AC = 0;
+			} while (process[new_process].state == READY && loop_counter < MAX_PROCESS);
+			
+			if (loop_counter == MAX_PROCESS) {
+				printf("Tous les processus sont déjà occupés.\n");
+			}
+			else {
+				printf("Création d'un nouveau thread %d.\n", new_process);
+				init_process(new_process);
+				process[new_process].cpu = m;
+				process[current_process].cpu.RI.i = new_process;
+				process[current_process].cpu.AC = new_process;
+				process[new_process].cpu.RI.i = 0;
+				process[new_process].cpu.AC = 0;
+			}
 			break;
 	}
 }
 
 PSW systeme(PSW m) {
-	printf("Interruption n° : %d\n", m.IN);
+	// if (m.IN != INT_TRACE)
+	// 	printf("Interruption n° : %d\n", m.IN);
 	printf("Process %d : Program Counter : %d.\n", current_process, m.PC);
 	switch (m.IN) {
 		case INT_INIT:
@@ -369,10 +434,10 @@ PSW systeme(PSW m) {
 		case INT_CLOCK :
 			printf("Interruption clock\n");			
 			process[current_process].cpu = m;
+			printf("Changement de processus\n");
 			do {
-				printf("Changement de processus\n");
 				current_process = (current_process + 1) % MAX_PROCESS;
-			} while (process[current_process].state != READY);
+			} while (process[current_process].state == READY);
 			printf("Nouveau processus : %d\n", current_process);
 			return process[current_process].cpu;
 			break;
